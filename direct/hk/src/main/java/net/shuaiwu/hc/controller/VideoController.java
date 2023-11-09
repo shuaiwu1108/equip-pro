@@ -3,6 +3,8 @@ package net.shuaiwu.hc.controller;
 import static net.shuaiwu.hc.utils.HcVideoUtil.*;
 import static net.shuaiwu.hc.utils.HcVideoUtil.realPlay;
 
+import cn.hutool.core.map.MapBuilder;
+import cn.hutool.core.map.MapUtil;
 import cn.hutool.json.JSONObject;
 import com.sun.jna.Pointer;
 import java.io.File;
@@ -62,7 +64,7 @@ public class VideoController {
     }
 
     @RequestMapping("login")
-    public void login(@RequestBody JSONObject jsonObject){
+    public Object login(@RequestBody JSONObject jsonObject){
         // "192.168.0.251", (short) 8000,"admin","zn123456"
         String ip = jsonObject.getStr("ip");
         short port = jsonObject.getShort("port");
@@ -70,34 +72,43 @@ public class VideoController {
         String password = jsonObject.getStr("password");
 
         login_V40(ip, port, user, password);
+        return MapUtil.builder()
+            .put("lUserID", lUserID)
+            .put("lDChannel", lDChannel)
+            .build();
 //        getIPChannelInfo(lUserID);
     }
 
     @RequestMapping("readPlay")
-    public void realPlayAction(@RequestBody JSONObject jsonObject){
+    public Object realPlayAction(@RequestBody JSONObject jsonObject){
         int sleepTime = jsonObject.getInt("realPlayTime");
-        boolean flag = jsonObject.getBool("saveRealPlay");
 
         realPlay(lUserID, lDChannel);
-
-        if (flag){
+        MapBuilder<Object, Object> mapBuilder = MapUtil.builder()
+            .put("lPlay", lPlay);
+        if (lPlay != -1){
             String fP = System.getProperty("user.dir") + File.separator + "Download";
             File f = new File(fP);
             if (!f.exists()){
                 f.mkdir();
             }
-            saveRealPlay(lPlay, f.getAbsolutePath() + File.separator + System.currentTimeMillis() + ".mp4");
+            String name = System.currentTimeMillis() + ".mp4";
+            mapBuilder.put("fileName", name);
+            saveRealPlay(f.getAbsolutePath() + File.separator + name);
         }
         try {
             TimeUnit.SECONDS.sleep(sleepTime);
         } catch (InterruptedException e) {
             throw new RuntimeException(e);
         }
+        return mapBuilder.build();
     }
 
     @RequestMapping("stopRealPlay")
     public void stopReal(){
-        stopRealPlay();
         stopSaveRealPlay();
+        stopRealPlay();
+        logout();
+        clean();
     }
 }

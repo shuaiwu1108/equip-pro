@@ -168,21 +168,22 @@ public class HcVideoUtil {
      * @param iChannelNo
      * @return lPlay 预览句柄
      */
-    public static int realPlay(int userID, int iChannelNo) {
+    public static void realPlay(int userID, int iChannelNo) {
         if (userID == -1) {
             log.error("请先注册");
-            return lPlay;
+            return;
         }
         HCNetSDK.NET_DVR_PREVIEWINFO strClientInfo = new HCNetSDK.NET_DVR_PREVIEWINFO();
         strClientInfo.read();
-//        strClientInfo.hPlayWnd = 0;  //窗口句柄，从回调取流不显示一般设置为空
+        //strClientInfo.hPlayWnd = null;  //窗口句柄，从回调取流不显示一般设置为空
         strClientInfo.lChannel = iChannelNo;  //通道号
         strClientInfo.dwStreamType = 0; //0-主码流，1-子码流，2-三码流，3-虚拟码流，以此类推
         strClientInfo.dwLinkMode = 0; //连接方式：0- TCP方式，1- UDP方式，2- 多播方式，3- RTP方式，4- RTP/RTSP，5- RTP/HTTP，6- HRUDP（可靠传输） ，7- RTSP/HTTPS，8- NPQ
         strClientInfo.bBlocked = 0;
+        strClientInfo.byProtoType = 1;
         strClientInfo.write();
 
-        //回调函数定义必须是全局的
+        //回调函数定义必须是全局的,
         if (fRealDataCallBack == null) {
             fRealDataCallBack = new FRealDataCallBack();
         }
@@ -191,29 +192,31 @@ public class HcVideoUtil {
         lPlay = hCNetSDK.NET_DVR_RealPlay_V40(userID, strClientInfo, fRealDataCallBack, null);
         if (lPlay == -1) {
             int iErr = hCNetSDK.NET_DVR_GetLastError();
-            System.out.println("取流失败" + iErr);
-            return lPlay;
+            log.error("取流失败, {}", iErr);
+            return;
         }
         log.info("取流成功, 预览句柄:{}", lPlay);
-        return lPlay;
     }
 
 
     /**
      * 保存码流至文件
-     * @param lPlay
      * @param sFileName
      */
-    public static void saveRealPlay(int lPlay, String sFileName){
+    public static void saveRealPlay(String sFileName){
         //设置码流保存
-        hCNetSDK.NET_DVR_SaveRealData(lPlay, sFileName);
+        if(lPlay != -1){
+            if (hCNetSDK.NET_DVR_SaveRealData(lPlay, sFileName)){
+                log.info("开始录像成功");
+            }
+        }
     }
 
     /**
      * 停止实时预览
      */
     public static void stopRealPlay(){
-        if (lPlay >= 0) {
+        if (lPlay != -1) {
             if (hCNetSDK.NET_DVR_StopRealPlay(lPlay)) {
                 log.info("停止预览成功");
             }
@@ -221,10 +224,24 @@ public class HcVideoUtil {
     }
 
     public static void stopSaveRealPlay(){
-        if (lDChannel >= 0) {
-            if(hCNetSDK.NET_DVR_StopSaveRealData(lDChannel)){
+        if (lPlay >= 0) {
+            if(hCNetSDK.NET_DVR_StopSaveRealData(lPlay)){
                 log.info("停止录像成功");
             }
+        }
+    }
+
+    public static void logout(){
+        if (lUserID != -1){
+            if (hCNetSDK.NET_DVR_Logout(lUserID)){
+                log.info("用户登出成功");
+            }
+        }
+    }
+
+    public static void clean(){
+        if (hCNetSDK.NET_DVR_Cleanup()){
+            log.info("资源已释放");
         }
     }
 
@@ -248,11 +265,10 @@ public class HcVideoUtil {
         public void invoke(int lRealHandle, int dwDataType, ByteByReference pBuffer, int dwBufSize,
             Pointer pUser) {
             if (Count == 100) {//降低打印频率
-
+                log.info("码流数据回调...dwBufSize={}", dwBufSize);
                 Count = 0;
             }
             Count++;
-            log.info("码流数据回调...dwBufSize={}", dwBufSize);
             //播放库解码
             switch (dwDataType) {
                 case HCNetSDK.NET_DVR_SYSHEAD: //系统头
