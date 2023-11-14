@@ -4,11 +4,14 @@ import com.sun.jna.Native;
 import com.sun.jna.Pointer;
 import com.sun.jna.ptr.ByteByReference;
 import com.sun.jna.ptr.IntByReference;
+import java.io.File;
 import java.io.FileNotFoundException;
 import java.io.FileOutputStream;
 import java.io.IOException;
+import java.io.UnsupportedEncodingException;
 import java.nio.ByteBuffer;
 import lombok.extern.slf4j.Slf4j;
+import net.shuaiwu.hc.utils.HCNetSDK.*;
 
 @Slf4j
 public class HcVideoUtil {
@@ -25,6 +28,13 @@ public class HcVideoUtil {
     public static int lDChannel;  //预览通道号
 
     public static FRealDataCallBack fRealDataCallBack;//预览回调函数实现
+
+    public static int lAlarmHandle =-1;//报警布防句柄
+
+    public static int lListenHandle = -1;//报警监听句柄
+
+    //    public static FMSGCallBack fMSFCallBack=null;
+    public static FMSGCallBack_V31 fMSFCallBack_V31 = null;
 
     /**
      * 动态库加载
@@ -80,6 +90,59 @@ public class HcVideoUtil {
             }
         }
         return true;
+    }
+
+    public static boolean satartPic() {
+        //开始抓图
+        NET_DVR_JPEGPARA netDvrJpegpara = new NET_DVR_JPEGPARA();
+        netDvrJpegpara.wPicQuality = 0;
+        netDvrJpegpara.wPicSize = 5;
+        String path = System.getProperty("user.dir")  +  File.separator  + System.currentTimeMillis() + ".jpg";
+        return hCNetSDK.NET_DVR_CaptureJPEGPicture(lUserID, lDChannel, netDvrJpegpara, path.getBytes());
+    }
+
+    //    /**
+//     * 开启监听
+//     *
+//     * @param ip   监听IP
+//     * @param port 监听端口
+//     */
+//    public static void startListen(String ip, short port) {
+//        if (fMSFCallBack == null) {
+//            fMSFCallBack = new FMSGCallBack();
+//        }
+//        lListenHandle = hCNetSDK.NET_DVR_StartListen_V30(ip, port,fMSFCallBack, null);
+//        if (lListenHandle == -1) {
+//            log.error("监听失败" + hCNetSDK.NET_DVR_GetLastError());
+//        } else {
+//            log.info("监听成功");
+//        }
+//    }
+
+    /**
+     * 报警布防接口
+     *
+     * @param
+     */
+    public static void setAlarm() {
+        if (lAlarmHandle < 0) {
+            //报警布防参数设置
+            HCNetSDK.NET_DVR_SETUPALARM_PARAM m_strAlarmInfo = new HCNetSDK.NET_DVR_SETUPALARM_PARAM();
+            m_strAlarmInfo.dwSize = m_strAlarmInfo.size();
+            m_strAlarmInfo.byLevel = 0;  //布防等级
+            m_strAlarmInfo.byAlarmInfoType = 1;   // 智能交通报警信息上传类型：0- 老报警信息（NET_DVR_PLATE_RESULT），1- 新报警信息(NET_ITS_PLATE_RESULT)
+            m_strAlarmInfo.byDeployType = 0;   //布防类型：0-客户端布防，1-实时布防
+            m_strAlarmInfo.write();
+            lAlarmHandle = hCNetSDK.NET_DVR_SetupAlarmChan_V41(lUserID, m_strAlarmInfo);
+            log.info("lAlarmHandle: " + lAlarmHandle);
+            if (lAlarmHandle == -1) {
+                log.error("布防失败，错误码为" + hCNetSDK.NET_DVR_GetLastError());
+            } else {
+                log.info("布防成功");
+            }
+        } else {
+            log.info("设备已经布防，请先撤防！");
+        }
     }
 
     /**
@@ -296,6 +359,26 @@ public class HcVideoUtil {
                         }
                     }
             }
+        }
+    }
+
+    /**
+     * 报警信息回调函数
+     */
+//    public static class FMSGCallBack implements HCNetSDK.FMSGCallBack {
+//        public void invoke(int lCommand, HCNetSDK.NET_DVR_ALARMER pAlarmer, Pointer pAlarmInfo, int dwBufLen, Pointer pUser) {
+//            AlarmDataParse.alarmDataHandle(lCommand, pAlarmer, pAlarmInfo, dwBufLen, pUser);
+//            return;
+//        }
+//    }
+
+    /**
+     * 报警信息回调函数
+     */
+    public static class FMSGCallBack_V31 implements HCNetSDK.FMSGCallBack_V31 {
+        public boolean invoke(int lCommand, HCNetSDK.NET_DVR_ALARMER pAlarmer, Pointer pAlarmInfo, int dwBufLen, Pointer pUser) {
+            AlarmDataParse.alarmDataHandle(lCommand, pAlarmer, pAlarmInfo, dwBufLen, pUser);
+            return true;
         }
     }
 }
